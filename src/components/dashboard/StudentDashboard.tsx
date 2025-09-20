@@ -1,9 +1,15 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/contexts/AuthContext';
+import { CameraCapture } from '@/components/shared/CameraCapture';
+import { QRScanner } from '@/components/shared/QRScanner';
+import { attendanceService } from '@/services/attendanceService';
+import { locationService, LocationCoordinates } from '@/services/locationService';
+import { faceVerificationService } from '@/services/faceVerificationService';
+import { AttendanceRecord } from '@/types/auth';
 import { 
   Camera, 
   QrCode, 
@@ -39,35 +45,79 @@ interface AttendanceStats {
 export const StudentDashboard = () => {
   const { user, logout } = useAuth();
   const [isScanning, setIsScanning] = useState(false);
-  const [attendanceStats] = useState<AttendanceStats>({
-    overall: 85,
-    present: 68, 
-    absent: 8,
-    late: 4,
-    subjects: [
-      { name: 'Data Structures', percentage: 92, present: 23, total: 25, status: 'good' },
-      { name: 'Database Systems', percentage: 88, present: 22, total: 25, status: 'good' },
-      { name: 'Software Engineering', percentage: 76, present: 19, total: 25, status: 'warning' },
-      { name: 'Computer Networks', percentage: 68, present: 17, total: 25, status: 'danger' },
-    ]
+  const [showCamera, setShowCamera] = useState(false);
+  const [showQRScanner, setShowQRScanner] = useState(false);
+  const [currentLocation, setCurrentLocation] = useState<LocationCoordinates | null>(null);
+  const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
+  const [attendanceStats, setAttendanceStats] = useState({
+    overall: 0,
+    present: 0,
+    absent: 0,
+    late: 0,
+    subjects: [] as Array<{
+      name: string;
+      percentage: number;
+      present: number;
+      total: number;
+      status: 'good' | 'warning' | 'danger';
+    }>
   });
 
-  const handleQRScan = async () => {
-    setIsScanning(true);
+  useEffect(() => {
+    if (user) {
+      loadAttendanceData();
+    }
+  }, [user]);
+
+  const loadAttendanceData = async () => {
+    if (!user) return;
+    
     try {
-      // Mock QR scanning process
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      const records = await attendanceService.getStudentAttendance(user.id);
+      setAttendanceRecords(records);
+      
+      // Calculate stats from real data
+      const presentCount = records.filter(r => r.status === 'present').length;
+      const absentCount = records.filter(r => r.status === 'absent').length;
+      const lateCount = records.filter(r => r.status === 'late').length;
+      const total = records.length;
+      
+      setAttendanceStats({
+        overall: total > 0 ? Math.round((presentCount / total) * 100) : 0,
+        present: presentCount,
+        absent: absentCount,
+        late: lateCount,
+        subjects: [] // TODO: Calculate subject-wise stats
+      });
+    } catch (error) {
+      console.error('Error loading attendance data:', error);
+    }
+  };
+
+  const handleQRScan = async () => {
+    setShowQRScanner(true);
+  };
+
+  const onQRScanned = async (qrData: string) => {
+    setShowQRScanner(false);
+    setIsScanning(true);
+    
+    try {
+      // Get current location
+      const location = await locationService.getCurrentLocation();
+      setCurrentLocation(location);
+      
       toast({
         title: "QR Code Scanned Successfully",
         description: "Face verification required to mark attendance",
       });
       
       // Trigger face verification
-      handleFaceVerification();
+      setShowCamera(true);
     } catch (error) {
       toast({
-        title: "QR Scan Failed",
-        description: "Please try again or contact your instructor",
+        title: "Location Error",
+        description: "Please enable location access to continue",
         variant: "destructive",
       });
     } finally {
@@ -75,19 +125,68 @@ export const StudentDashboard = () => {
     }
   };
 
-  const handleFaceVerification = async () => {
-    try {
-      // Mock face verification
-      await new Promise(resolve => setTimeout(resolve, 1500));
+  const handleFaceVerification = async (imageData: string) => {
+    setShowCamera(false);
+    
+    if (!user || !currentLocation) {
       toast({
-        title: "Attendance Marked Successfully",
-        description: "You are now marked present for today's class",
-        className: "bg-success text-success-foreground",
+        title: "Error",
+        description: "Missing required data for attendance",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      // Verify face
+      const faceVerified = await faceVerificationService.verifyFace(imageData, user.id);
+      
+      if (faceVerified) {
+        // Mark attendance (using mock class ID for demo)
+        await attendanceService.markAttendance(
+          user.id,
+          'demo-class-' + Date.now(),
+          currentLocation,
+          true,
+          true
+        );
+        
+        toast({
+          title: "Attendance Marked Successfully",
+          description: "You are now marked present for today's class",
+          className: "bg-success text-success-foreground",
+        });
+        
+        // Reload attendance data
+        loadAttendanceData();
+      } else {
+        toast({
+          title: "Face Verification Failed",
+          description: "Please ensure good lighting and try again",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "Attendance Error",
+        description: "Failed to mark attendance. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleLocationCheck = async () => {
+    try {
+      const location = await locationService.getCurrentLocation();
+      setCurrentLocation(location);
+      toast({
+        title: "Location Retrieved", 
+        description: `Lat: ${location.latitude.toFixed(6)}, Lng: ${location.longitude.toFixed(6)}`,
       });
     } catch (error) {
       toast({
-        title: "Face Verification Failed",
-        description: "Please ensure good lighting and try again",
+        title: "Location Error",
+        description: error instanceof Error ? error.message : "Location access failed",
         variant: "destructive",
       });
     }
@@ -104,8 +203,8 @@ export const StudentDashboard = () => {
 
   const quickActions = [
     { icon: QrCode, label: 'Scan QR', action: handleQRScan, color: 'bg-primary', loading: isScanning },
-    { icon: Camera, label: 'Face Check', action: handleFaceVerification, color: 'bg-secondary' },
-    { icon: MapPin, label: 'Location', action: () => toast({ title: "Location verified" }), color: 'bg-success' },
+    { icon: Camera, label: 'Face Check', action: () => setShowCamera(true), color: 'bg-secondary' },
+    { icon: MapPin, label: 'Location', action: handleLocationCheck, color: 'bg-success' },
     { icon: Bell, label: 'Alerts', action: () => toast({ title: "No new alerts" }), color: 'bg-warning' },
   ];
 
@@ -268,6 +367,23 @@ export const StudentDashboard = () => {
           </CardContent>
         </Card>
       </div>
+      
+      {/* Camera and QR Scanner Modals */}
+      {showCamera && (
+        <CameraCapture
+          onCapture={handleFaceVerification}
+          onClose={() => setShowCamera(false)}
+          title="Face Verification"
+        />
+      )}
+      
+      {showQRScanner && (
+        <QRScanner
+          onScan={onQRScanned}
+          onClose={() => setShowQRScanner(false)}
+          title="Scan Class QR Code"
+        />
+      )}
     </div>
   );
 };

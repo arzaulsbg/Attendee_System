@@ -1,5 +1,14 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { User, UserRole } from '@/types/auth';
+import { auth, db } from '@/lib/firebase';
+import { 
+  signInWithEmailAndPassword, 
+  createUserWithEmailAndPassword,
+  signOut,
+  onAuthStateChanged,
+  User as FirebaseUser
+} from 'firebase/auth';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
 
 interface AuthContextType {
   user: User | null;
@@ -35,45 +44,59 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Check for stored user session
-    const storedUser = localStorage.getItem('attendance_user');
-    if (storedUser) {
-      try {
-        const userData = JSON.parse(storedUser);
-        setUser({
-          ...userData,
-          createdAt: new Date(userData.createdAt),
-          lastLogin: userData.lastLogin ? new Date(userData.lastLogin) : undefined,
-        });
-      } catch (error) {
-        console.error('Error parsing stored user:', error);
-        localStorage.removeItem('attendance_user');
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      if (firebaseUser) {
+        try {
+          const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
+          if (userDoc.exists()) {
+            const userData = userDoc.data();
+            setUser({
+              id: firebaseUser.uid,
+              email: firebaseUser.email!,
+              name: userData.name,
+              role: userData.role,
+              department: userData.department,
+              studentId: userData.studentId,
+              facultyId: userData.facultyId,
+              phone: userData.phone,
+              profileImage: userData.profileImage,
+              createdAt: userData.createdAt?.toDate() || new Date(),
+              lastLogin: new Date(),
+            });
+          }
+        } catch (error) {
+          console.error('Error fetching user data:', error);
+        }
+      } else {
+        setUser(null);
       }
-    }
-    setLoading(false);
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
   }, []);
 
   const login = async (email: string, password: string) => {
     setLoading(true);
     try {
-      // Mock authentication - replace with Firebase Auth
-      const mockUser: User = {
-        id: '1',
-        email,
-        name: 'Demo User',
-        role: email.includes('admin') ? 'admin' : email.includes('faculty') ? 'faculty' : 'student',
-        department: 'Computer Science',
-        studentId: email.includes('student') ? 'CS2024001' : undefined,
-        facultyId: email.includes('faculty') ? 'FAC001' : undefined,
-        phone: '+1234567890',
-        createdAt: new Date(),
-        lastLogin: new Date(),
-      };
-
-      setUser(mockUser);
-      localStorage.setItem('attendance_user', JSON.stringify(mockUser));
-    } catch (error) {
-      throw new Error('Login failed');
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      const firebaseUser = userCredential.user;
+      
+      // Update last login in Firestore
+      await setDoc(doc(db, 'users', firebaseUser.uid), {
+        lastLogin: new Date()
+      }, { merge: true });
+      
+    } catch (error: any) {
+      let errorMessage = 'Login failed';
+      if (error.code === 'auth/user-not-found') {
+        errorMessage = 'No account found with this email';
+      } else if (error.code === 'auth/wrong-password') {
+        errorMessage = 'Incorrect password';
+      } else if (error.code === 'auth/invalid-email') {
+        errorMessage = 'Invalid email address';
+      }
+      throw new Error(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -82,25 +105,44 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const register = async (userData: RegisterData) => {
     setLoading(true);
     try {
-      // Mock registration - replace with Firebase Auth
-      const newUser: User = {
-        id: Date.now().toString(),
-        ...userData,
+      const userCredential = await createUserWithEmailAndPassword(auth, userData.email, userData.password);
+      const firebaseUser = userCredential.user;
+
+      // Create user document in Firestore
+      const userDoc = {
+        name: userData.name,
+        role: userData.role,
+        department: userData.department,
+        studentId: userData.studentId,
+        facultyId: userData.facultyId,
+        phone: userData.phone,
         createdAt: new Date(),
+        lastLogin: new Date(),
       };
 
-      setUser(newUser);
-      localStorage.setItem('attendance_user', JSON.stringify(newUser));
-    } catch (error) {
-      throw new Error('Registration failed');
+      await setDoc(doc(db, 'users', firebaseUser.uid), userDoc);
+      
+    } catch (error: any) {
+      let errorMessage = 'Registration failed';
+      if (error.code === 'auth/email-already-in-use') {
+        errorMessage = 'Email is already registered';
+      } else if (error.code === 'auth/weak-password') {
+        errorMessage = 'Password is too weak';
+      } else if (error.code === 'auth/invalid-email') {
+        errorMessage = 'Invalid email address';
+      }
+      throw new Error(errorMessage);
     } finally {
       setLoading(false);
     }
   };
 
-  const logout = () => {
-    setUser(null);
-    localStorage.removeItem('attendance_user');
+  const logout = async () => {
+    try {
+      await signOut(auth);
+    } catch (error) {
+      console.error('Logout error:', error);
+    }
   };
 
   const value = {
