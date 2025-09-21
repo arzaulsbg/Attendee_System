@@ -6,6 +6,7 @@ export interface User {
   name: string;
   role: UserRole;
   profileImage?: string;
+  faceImageUrl?: string;
   department?: string;
   studentId?: string;
   facultyId?: string;
@@ -30,6 +31,7 @@ export interface AttendanceRecord {
 }
 
 export interface ClassSession {
+  qrGenerated: boolean;
   id: string;
   facultyId: string;
   subject: string;
@@ -43,4 +45,6 @@ export interface ClassSession {
     radius: number; // meters
   };
   attendanceRecords: AttendanceRecord[];
+  studentsPresent: number;
+  totalStudents: number;
 }
