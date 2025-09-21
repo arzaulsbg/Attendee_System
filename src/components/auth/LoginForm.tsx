@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import { CameraCapture } from '@/components/shared/CameraCapture';
+import { uploadProfileImageBase64 } from '@/services/storageService';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -25,13 +27,30 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onToggleMode, isRegisterMo
     studentId: '',
     facultyId: '',
     phone: '',
+    faceImageUrl: '',
   });
+  const [showCamera, setShowCamera] = useState(false);
+  const [faceImage, setFaceImage] = useState<string | null>(null);
+  const [uploadingFace, setUploadingFace] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
       if (isRegisterMode) {
-        await register(formData);
+        if (!faceImage) {
+          toast({
+            title: "Face Required",
+            description: "Please capture your face to complete registration.",
+            variant: "destructive",
+          });
+          return;
+        }
+        setUploadingFace(true);
+        // Upload to FastAPI backend
+        const url = await uploadProfileImageBase64(faceImage);
+        setFormData(prev => ({ ...prev, faceImageUrl: url }));
+        setUploadingFace(false);
+        await register({ ...formData, faceImageUrl: url });
         toast({
           title: "Registration Successful",
           description: "Welcome to Smart Attendance System!",
@@ -44,12 +63,20 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onToggleMode, isRegisterMo
         });
       }
     } catch (error) {
+      setUploadingFace(false);
       toast({
         title: "Error",
         description: error instanceof Error ? error.message : "Authentication failed",
         variant: "destructive",
       });
     }
+  };
+  const handleFaceCapture = (imageData: string) => {
+    setFaceImage(imageData);
+    setShowCamera(false);
+  };
+  const handleRemoveFace = () => {
+    setFaceImage(null);
   };
 
   const handleInputChange = (field: string, value: string) => {
@@ -93,6 +120,26 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onToggleMode, isRegisterMo
               <form onSubmit={handleSubmit} className="space-y-4">
                 {isRegisterMode && (
                   <>
+                    <div className="space-y-2">
+                      <Label>Face Capture</Label>
+                      {faceImage ? (
+                        <div className="flex flex-col items-center gap-2">
+                          <img src={faceImage} alt="Face Preview" className="w-32 h-32 rounded-full object-cover border" />
+                          <Button type="button" variant="outline" onClick={handleRemoveFace} disabled={uploadingFace}>Remove</Button>
+                        </div>
+                      ) : (
+                        <Button type="button" onClick={() => setShowCamera(true)} disabled={uploadingFace}>
+                          Capture Face
+                        </Button>
+                      )}
+                    </div>
+      {showCamera && (
+        <CameraCapture
+          onCapture={handleFaceCapture}
+          onClose={() => setShowCamera(false)}
+          title="Capture Your Face"
+        />
+      )}
                     <div className="space-y-2">
                       <Label htmlFor="name">Full Name</Label>
                       <Input

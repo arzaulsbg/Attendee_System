@@ -127,7 +127,6 @@ export const StudentDashboard = () => {
 
   const handleFaceVerification = async (imageData: string) => {
     setShowCamera(false);
-    
     if (!user || !currentLocation) {
       toast({
         title: "Error",
@@ -136,13 +135,20 @@ export const StudentDashboard = () => {
       });
       return;
     }
-
     try {
-      // Verify face
-      const faceVerified = await faceVerificationService.verifyFace(imageData, user.id);
-      
+      // Use stored face image URL from user profile
+      const storedImageUrl = (user as any).faceImageUrl || '';
+      if (!storedImageUrl) {
+        toast({
+          title: "No Face Registered",
+          description: "No face image found for this user. Please contact admin.",
+          variant: "destructive",
+        });
+        return;
+      }
+      // Real face verification
+      const faceVerified = await faceVerificationService.verifyFace(imageData, storedImageUrl, user.id);
       if (faceVerified) {
-        // Mark attendance (using mock class ID for demo)
         await attendanceService.markAttendance(
           user.id,
           'demo-class-' + Date.now(),
@@ -150,14 +156,11 @@ export const StudentDashboard = () => {
           true,
           true
         );
-        
         toast({
           title: "Attendance Marked Successfully",
           description: "You are now marked present for today's class",
           className: "bg-success text-success-foreground",
         });
-        
-        // Reload attendance data
         loadAttendanceData();
       } else {
         toast({

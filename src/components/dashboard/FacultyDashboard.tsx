@@ -55,6 +55,7 @@ export const FacultyDashboard = () => {
     subject: '',
     duration: 60
   });
+  const [qrCode, setQrCode] = useState<string>('');
 
   useEffect(() => {
     if (user) {
@@ -172,42 +173,48 @@ export const FacultyDashboard = () => {
   const [todayClasses] = useState<ClassSession[]>([
     {
       id: '1',
+      facultyId: 'fac-001',
       subject: 'Data Structures',
-      date: '2024-01-15',
-      time: '09:00 AM',
+      date: new Date('2024-01-15'),
+      startTime: '09:00',
+      endTime: '10:00',
+      qrCode: 'QR1',
+      location: { latitude: 0, longitude: 0, radius: 50 },
+      attendanceRecords: [],
       studentsPresent: 28,
       totalStudents: 32,
-      qrGenerated: true,
-      status: 'completed'
+      qrGenerated: true
     },
     {
-      id: '2', 
+      id: '2',
+      facultyId: 'fac-001',
       subject: 'Database Systems',
-      date: '2024-01-15',
-      time: '11:00 AM',
+      date: new Date('2024-01-15'),
+      startTime: '10:30',
+      endTime: '11:30',
+      qrCode: 'QR2',
+      location: { latitude: 0, longitude: 0, radius: 50 },
+      attendanceRecords: [],
       studentsPresent: 15,
       totalStudents: 30,
-      qrGenerated: true,
-      status: 'active'
+      qrGenerated: true
     },
     {
       id: '3',
+      facultyId: 'fac-001',
       subject: 'Software Engineering',
-      date: '2024-01-15', 
-      time: '02:00 PM',
+      date: new Date('2024-01-15'),
+      startTime: '12:00',
+      endTime: '13:00',
+      qrCode: 'QR3',
+      location: { latitude: 0, longitude: 0, radius: 50 },
+      attendanceRecords: [],
       studentsPresent: 0,
       totalStudents: 25,
-      qrGenerated: false,
-      status: 'upcoming'
+      qrGenerated: false
     }
   ]);
 
-  const [liveAttendance] = useState<StudentAttendance[]>([
-    { id: '1', name: 'Alice Johnson', studentId: 'CS2024001', status: 'present', timestamp: '11:05 AM', faceVerified: true, location: 'Room 203' },
-    { id: '2', name: 'Bob Smith', studentId: 'CS2024002', status: 'present', timestamp: '11:03 AM', faceVerified: true, location: 'Room 203' },
-    { id: '3', name: 'Carol Davis', studentId: 'CS2024003', status: 'late', timestamp: '11:12 AM', faceVerified: true, location: 'Room 203' },
-    { id: '4', name: 'David Wilson', studentId: 'CS2024004', status: 'absent', faceVerified: false },
-  ]);
 
   const generateQRCode = async (classId: string) => {
     try {

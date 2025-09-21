@@ -5,13 +5,13 @@ import { getStorage } from 'firebase/storage';
 import { getMessaging } from 'firebase/messaging';
 
 const firebaseConfig = {
-  // These would be replaced with actual Firebase config
-  apiKey: "demo-api-key",
-  authDomain: "attendance-demo.firebaseapp.com",
-  projectId: "attendance-demo",
-  storageBucket: "attendance-demo.appspot.com",
-  messagingSenderId: "123456789",
-  appId: "1:123456789:web:abcdef123456"
+  apiKey: "AIzaSyDh4A5HDcaKlEjfDXwQcsW-tW6ZSd664S0",
+  authDomain: "system-1acc3.firebaseapp.com",
+  projectId: "system-1acc3",
+  storageBucket: "system-1acc3.appspot.com",
+  messagingSenderId: "442841417216",
+  appId: "1:442841417216:web:9cd596a9587353bdbf3ae5",
+  measurementId: "G-VC670Q10W6"
 };
 
 // Initialize Firebase

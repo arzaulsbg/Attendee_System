@@ -1,24 +1,22 @@
 export interface FaceVerificationService {
-  verifyFace: (imageData: string, userId: string) => Promise<boolean>;
+  verifyFace: (liveImageData: string, storedImageUrl: string, userId: string) => Promise<boolean>;
   enrollFace: (imageData: string, userId: string) => Promise<void>;
 }
 
 class FaceVerificationServiceImpl implements FaceVerificationService {
   private readonly API_BASE_URL = 'https://your-face-api.com'; // Replace with actual API
 
-  async verifyFace(imageData: string, userId: string): Promise<boolean> {
+  async verifyFace(liveImageData: string, storedImageUrl: string, userId: string): Promise<boolean> {
     try {
-      // Mock implementation - replace with actual API call
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
-      // Simulate API call
+      // Real API call: send both live image and stored image URL
       const response = await fetch(`${this.API_BASE_URL}/verify`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          image: imageData,
+          live_image: liveImageData,
+          stored_image_url: storedImageUrl,
           user_id: userId,
         }),
       });
@@ -28,11 +26,10 @@ class FaceVerificationServiceImpl implements FaceVerificationService {
       }
 
       const result = await response.json();
-      return result.verified || Math.random() > 0.2; // Mock success rate
+      return result.verified;
     } catch (error) {
       console.error('Face verification error:', error);
-      // Return mock result for demo
-      return Math.random() > 0.2;
+      return false;
     }
   }
 
